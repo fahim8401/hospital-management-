@@ -111,7 +111,7 @@
                         <a href="#" class="block px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 rounded-t-xl">Profile</a>
                         <a href="#" class="block px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">Settings</a>
                         <div class="border-t border-slate-100"></div>
-                        <form method="POST" action="{{ route('logout') }}" onsubmit="">
+                        <form method="POST" action="{{ route('logout') }}">
                             @csrf
                             <button type="submit" class="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-b-xl">
                                 Logout
