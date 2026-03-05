@@ -9,9 +9,16 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        then: function () {
+            \Illuminate\Support\Facades\Route::middleware('web')
+                ->group(base_path('routes/install.php'));
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'installed'        => \App\Http\Middleware\EnsureInstalled::class,
+            'not.installed'    => \App\Http\Middleware\RedirectIfInstalled::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
