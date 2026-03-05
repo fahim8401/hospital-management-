@@ -12,12 +12,14 @@ A full-featured **Hospital Management System** built with **Laravel 12** and **T
 4. [Installation](#installation)
 5. [Configuration](#configuration)
 6. [Running the Application](#running-the-application)
-7. [Database](#database)
-8. [Routes Overview](#routes-overview)
-9. [Project Structure](#project-structure)
-10. [Running Tests](#running-tests)
-11. [Contributing](#contributing)
-12. [License](#license)
+7. [Deploying to cPanel](#deploying-to-cpanel)
+8. [Database](#database)
+9. [Admin User Setup](#admin-user-setup)
+10. [Routes Overview](#routes-overview)
+11. [Project Structure](#project-structure)
+12. [Running Tests](#running-tests)
+13. [Contributing](#contributing)
+14. [License](#license)
 
 ---
 
@@ -166,7 +168,186 @@ php artisan serve
 
 ---
 
+## Deploying to cPanel
+
+> These steps apply to shared hosting providers that use **cPanel** with **MySQL** and **PHP 8.2+** (e.g., Hostinger, Namecheap, BlueHost).
+
+### 1. Build assets locally first
+
+cPanel shared hosting typically does not have Node.js. Build the frontend **on your local machine** before uploading:
+
+```bash
+npm install
+npm run build
+```
+
+This produces a `public/build/` directory that you will upload alongside the rest of the project.
+
+### 2. Upload project files
+
+Upload the entire project to your hosting account. Two common methods:
+
+**Option A — File Manager (cPanel):**
+1. Log in to cPanel → **File Manager**.
+2. Navigate to your home directory (e.g., `/home/youraccount/`).
+3. Create a folder named `hospital-management` (outside `public_html`).
+4. Upload a `.zip` of the project, then **Extract** it.
+
+**Option B — FTP/SFTP:**
+```bash
+# Example using scp (replace values with your host details)
+scp -r . youraccount@yourdomain.com:/home/youraccount/hospital-management/
+```
+
+### 3. Point your domain to `public/`
+
+1. In cPanel, go to **Domains** → **Addon Domains** or **Subdomains**.
+2. Set the **Document Root** to:
+   ```
+   /home/youraccount/hospital-management/public
+   ```
+3. If using the main domain, go to **File Manager** and update `public_html` to point there (or create a symlink via Terminal).
+
+### 4. Set PHP version to 8.2+
+
+1. In cPanel, open **MultiPHP Manager** (or **PHP Selector**).
+2. Select your domain and choose **PHP 8.2** or higher.
+3. Under **PHP Extensions**, ensure these are enabled:
+   `pdo_mysql`, `mbstring`, `openssl`, `tokenizer`, `xml`, `ctype`, `json`, `fileinfo`
+
+### 5. Create the MySQL database
+
+> See [Connecting a MySQL Database (cPanel)](#connecting-a-mysql-database-cpanel) below for the full database setup steps.
+
+### 6. Configure the `.env` file
+
+1. In **File Manager**, navigate to `/home/youraccount/hospital-management/`.
+2. Copy `.env.example` to `.env` and edit it:
+
+```env
+APP_NAME="BDHealthSync HMS"   # change to your preferred application name
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://yourdomain.com
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=youraccount_hospitaldb
+DB_USERNAME=youraccount_dbuser
+DB_PASSWORD=your_strong_password
+
+SESSION_DRIVER=file
+QUEUE_CONNECTION=sync
+CACHE_STORE=file
+```
+
+> **Note:** Set `SESSION_DRIVER=file` and `CACHE_STORE=file` on shared hosting where database-backed sessions may not be reliable. Set `QUEUE_CONNECTION=sync` unless you have a worker process.
+
+### 7. Install PHP dependencies via cPanel Terminal
+
+1. In cPanel, open **Terminal** (or connect via SSH).
+2. Navigate to the project directory:
+
+```bash
+cd /home/youraccount/hospital-management
+```
+
+3. Install Composer dependencies (no dev tools needed in production):
+
+```bash
+composer install --optimize-autoloader --no-dev
+```
+
+4. Generate the application key:
+
+```bash
+php artisan key:generate
+```
+
+5. Run database migrations:
+
+```bash
+php artisan migrate --force
+```
+
+6. Cache configuration for performance:
+
+```bash
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+### 8. Set file permissions
+
+```bash
+chmod -R 755 /home/youraccount/hospital-management
+chmod -R 775 /home/youraccount/hospital-management/storage
+chmod -R 775 /home/youraccount/hospital-management/bootstrap/cache
+```
+
+### 9. Verify the deployment
+
+Open your browser and navigate to `https://yourdomain.com`. If you see a blank page or error, check `storage/logs/laravel.log`:
+
+```bash
+tail -n 50 /home/youraccount/hospital-management/storage/logs/laravel.log
+```
+
+---
+
 ## Database
+
+### Connecting a MySQL Database (cPanel)
+
+Follow these steps inside cPanel to create a MySQL database and user for the application.
+
+#### Step 1 — Create the database
+
+1. In cPanel, go to **MySQL Databases**.
+2. Under **Create New Database**, enter a name (e.g., `hospitaldb`) and click **Create Database**.
+   - cPanel will prefix it automatically: `youraccount_hospitaldb`.
+
+#### Step 2 — Create a database user
+
+1. Still on the **MySQL Databases** page, scroll to **MySQL Users**.
+2. Enter a username (e.g., `dbuser`) and a strong password, then click **Create User**.
+   - Full username becomes: `youraccount_dbuser`.
+
+#### Step 3 — Grant privileges
+
+1. Under **Add User to Database**, select your new user and database.
+2. Click **Add**, then grant **ALL PRIVILEGES** and save.
+
+#### Step 4 — Update `.env`
+
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=youraccount_hospitaldb
+DB_USERNAME=youraccount_dbuser
+DB_PASSWORD=your_strong_password
+```
+
+#### Step 5 — Run migrations
+
+```bash
+# In cPanel Terminal or via SSH
+php artisan migrate --force
+```
+
+#### Connecting to an external MySQL server
+
+If your MySQL server is on a different host (e.g., a managed database service), update `DB_HOST` and ensure your cPanel account's IP is whitelisted on the remote server:
+
+```env
+DB_HOST=db.yourmanagedservice.com
+DB_PORT=3306
+```
+
+---
 
 ### Migrations
 
@@ -210,6 +391,109 @@ This creates a default test user:
 | `appointments`  | Patient–doctor appointment bookings              |
 | `invoices`      | Billing invoices per patient                     |
 | `invoice_items` | Line items for each invoice                      |
+
+---
+
+## Admin User Setup
+
+### Option 1 — Create via Laravel Tinker (recommended)
+
+Open a Tinker shell (locally or via cPanel Terminal/SSH):
+
+```bash
+php artisan tinker
+```
+
+Then run the following commands inside Tinker:
+
+```php
+// Create the admin user
+$user = \App\Models\User::create([
+    'name'     => 'Admin',
+    'email'    => 'admin@yourdomain.com',
+    'password' => bcrypt('Ch@ngeMe_Adm1n#2024'),
+]);
+
+// Create the admin role (if it does not exist yet).
+// This uses the application's built-in Role model and model_has_roles pivot table.
+$role = \App\Models\Role::firstOrCreate(
+    ['name' => 'admin', 'guard_name' => 'web']
+);
+
+// Assign the role to the user
+\DB::table('model_has_roles')->insert([
+    'role_id'    => $role->id,
+    'model_type' => \App\Models\User::class,
+    'model_id'   => $user->id,
+]);
+
+echo "Admin user created: " . $user->email;
+```
+
+Press `Ctrl + D` (or type `exit`) to leave Tinker.
+
+### Option 2 — Reset an existing user's password
+
+If a user already exists and you need to change their password:
+
+```bash
+php artisan tinker
+```
+
+```php
+$user = \App\Models\User::where('email', 'admin@yourdomain.com')->firstOrFail();
+$user->password = bcrypt('NewP@ssw0rd_Replace_Me!');
+$user->save();
+echo "Password updated for: " . $user->email;
+```
+
+### Option 3 — Use the database seeder
+
+Edit `database/seeders/DatabaseSeeder.php` to set your desired credentials before running:
+
+```php
+User::factory()->create([
+    'name'     => 'Admin',
+    'email'    => 'admin@yourdomain.com',
+    'password' => bcrypt('SeederP@ss_Replace_Me!'),
+]);
+```
+
+Then run:
+
+```bash
+php artisan db:seed
+```
+
+### Option 4 — Direct SQL (cPanel phpMyAdmin)
+
+If you cannot use the Terminal, log in to **phpMyAdmin** from cPanel and run:
+
+```sql
+INSERT INTO users (name, email, password, email_verified_at, created_at, updated_at)
+VALUES (
+    'Admin',
+    'admin@yourdomain.com',
+    '$2y$12$REPLACE_WITH_BCRYPT_HASH',
+    NOW(),
+    NOW(),
+    NOW()
+);
+```
+
+> **Important:** Never store a plain-text password. Generate a bcrypt hash first using an online bcrypt tool or locally with:
+> ```bash
+> php -r "echo password_hash('ReplaceWithYourOwnPassword!', PASSWORD_BCRYPT, ['cost' => 12]);"
+> ```
+> Copy the output and paste it in place of `$2y$12$REPLACE_WITH_BCRYPT_HASH`.
+> **All example passwords above are placeholders — always choose your own unique, strong password.**
+
+### Password requirements
+
+Use a password that is:
+- At least **12 characters** long
+- A mix of **uppercase, lowercase, numbers, and symbols**
+- Unique to this application (not reused elsewhere)
 
 ---
 
